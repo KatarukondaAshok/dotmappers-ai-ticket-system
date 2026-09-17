@@ -1,73 +1,110 @@
-# AI-Powered Support Ticket System
+<div align="center">
 
-**DOTMappers IT Pvt. Ltd. — AI Engineer Technical Assessment (End-to-End AI System Sprint)**
+# 🎫 AI-Powered Support Ticket System
 
-An AI system that ingests a customer support ticket CSV, answers natural-language
-questions about it, detects anomalies, and exposes everything through both a
-REST API and a minimal UI.
+**End-to-End AI System Sprint — DOTMappers IT Pvt. Ltd. AI Engineer Assessment**
+
+Natural-language querying · Statistical anomaly detection · REST API · Web UI
+
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.38-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![Groq](https://img.shields.io/badge/LLM-Groq%20%7C%20gpt--oss--120b-F55036)](https://groq.com/)
+[![Tests](https://img.shields.io/badge/tests-8%20passing-brightgreen)](#-running-tests)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](#option-b--docker-compose)
+
+</div>
 
 ---
 
-## 1. What this system does
+## 📌 Overview
 
-| Requirement (from the brief) | Implementation |
+This system turns a static customer-support ticket CSV into an interactive AI application. It can:
+
+- 📂 **Ingest** the CSV into a queryable, in-memory SQLite database
+- 💬 **Answer questions in plain English** — an LLM converts the question to SQL, SQLite computes the exact answer, and a second LLM call phrases the result for a human
+- 🚨 **Detect anomalies** — long resolution-time outliers and stale high-priority tickets, using deterministic statistics (no LLM involved)
+- 🌐 **Expose everything** through a REST API **and** a Streamlit UI
+- 🛡️ **Validate all generated SQL** before execution (read-only, single-statement only)
+- 🧪 **Run offline** — 8 automated tests, and a zero-key fallback demo mode
+
+The architecture deliberately separates *language understanding* (the LLM's job), *exact computation* (SQLite's job), and *statistical anomaly detection* (pandas' job) — rather than asking one LLM call to do everything.
+
+| Brief requirement | Where it's implemented |
 |---|---|
-| Ingest CSV and make it queryable | `app/data_loader.py` loads `data/support_tickets.csv` into an in-memory SQLite table (`tickets`) at startup |
-| Answer NL questions | `app/llm_engine.py` — LLM converts the question to SQL, SQL runs against SQLite, LLM phrases the result in plain English |
-| Detect & flag anomalies | `app/anomaly_detector.py` — two independent statistical rules (see §4) |
-| REST API **and** UI (both built) | `main.py` (FastAPI, 4 endpoints) + `ui/streamlit_app.py` (Streamlit, 3 tabs) |
+| Ingest CSV → make it queryable | [`app/data_loader.py`](app/data_loader.py) |
+| Answer NL questions | [`app/llm_engine.py`](app/llm_engine.py) |
+| Detect & flag anomalies | [`app/anomaly_detector.py`](app/anomaly_detector.py) |
+| REST API **and** UI (both required) | [`main.py`](main.py) + [`ui/streamlit_app.py`](ui/streamlit_app.py) |
+| Zero-cost, single-command start | Groq free tier + `./start.sh` / `docker-compose up` |
 
 ---
 
-## 2. Quick start
+## 📋 Table of contents
 
-### Option A — one command, no Docker
+- [Quick start](#-quick-start)
+- [Tech stack](#-tech-stack)
+- [Architecture](#-architecture)
+- [Design rationale](#-design-rationale)
+- [API reference](#-api-reference)
+- [Example queries & outputs](#-example-queries--outputs)
+- [Streamlit UI](#-streamlit-ui)
+- [Running tests](#-running-tests)
+- [Troubleshooting](#-troubleshooting)
+- [Known limitations](#-known-limitations)
+- [What I'd improve with more time](#-what-id-improve-with-more-time)
+- [How this maps to the evaluation criteria](#-how-this-maps-to-the-evaluation-criteria)
+- [Project structure](#-project-structure)
+
+---
+
+## 🚀 Quick start
+
+### Prerequisites
+- Python 3.11+
+- A free [Groq API key](https://console.groq.com/keys) (optional — see fallback mode below)
+
+### Option A — single command, no Docker
+
 ```bash
-git clone <this-repo>
+git clone https://github.com/KatarukondaAshok/dotmappers-ai-ticket-system.git
 cd dotmappers-ai-ticket-system
 pip install -r requirements.txt
-cp .env.example .env          # then paste a free Groq key into .env (see §3)
+cp .env.example .env          # then paste your free Groq key into .env
 ./start.sh                    # starts API on :8000 and UI on :8501
 ```
 
-### Option B — Docker Compose (also a single command)
+### Option B — Docker Compose
+
 ```bash
 cp .env.example .env          # add your Groq key first
 docker-compose up
 ```
-- API: http://localhost:8000/docs (interactive Swagger UI)
-- UI: http://localhost:8501
 
-The system also runs with **zero setup and zero cost** even without a Groq key —
-it boots into a small fallback mode that recognises the five sample questions
-from the assessment brief, so the evaluator can smoke-test the plumbing (API up,
-data loaded, anomalies working) in seconds. Full natural-language coverage of
-*any* question requires the free key below.
+| Service | URL |
+|---|---|
+| 🔌 API + interactive docs | http://localhost:8000/docs |
+| 🖥️ Web UI | http://localhost:8501 |
 
-### Running tests
-```bash
-pytest -v
-```
-All 8 tests run offline (no API key needed) and cover data loading, anomaly
-rules, and every endpoint including the fallback path.
+> **No Groq key yet?** The app still runs at **zero setup, zero cost** — it falls back to a small keyword-matched demo mode covering the five sample questions from the assessment brief, so you can verify the API, data loading, and anomaly detection immediately. Full natural-language coverage of *any* question needs the free key above.
 
 ---
 
-## 3. Model / tools used
+## 🧰 Tech stack
 
-| Component | Choice | Why |
+| Layer | Technology | Why |
 |---|---|---|
-| LLM | **Groq — Llama 3.3 70B Versatile** (`llama-3.3-70b-versatile`) | Free tier, no card required, fast inference (important for a text-to-SQL round-trip + summarisation round-trip per query), explicitly allowed by the brief |
-| Query surface | **SQLite** (in-memory, loaded fresh from the CSV each run) | Gives the LLM a stable, well-known target (SQL) instead of inventing a custom query DSL; zero external DB service to install |
-| API | **FastAPI** | Async-ready, automatic OpenAPI docs at `/docs`, Pydantic validation for free |
-| UI | **Streamlit** | Fastest way to a usable UI for a 48-hour sprint; kept as a thin client over the API so the two never drift out of sync |
-| Data | **pandas** | CSV parsing/type coercion before loading into SQLite |
-
-Get a free Groq key: https://console.groq.com/keys → paste it into `.env` as `GROQ_API_KEY`.
+| **LLM** | Groq — [`openai/gpt-oss-120b`](https://console.groq.com/docs/model/openai/gpt-oss-120b) | Free tier, fast inference (each query is *two* LLM calls), explicitly allowed by the brief. Groq's own recommended successor to `llama-3.3-70b-versatile`, decommissioned 16 Aug 2026 — configurable via `GROQ_MODEL` in `.env`, no code change needed to swap models |
+| **Query surface** | SQLite (in-memory) | Gives the LLM a stable, standard target (SQL) instead of a custom DSL; zero DB server to install |
+| **API** | FastAPI | Async-ready, auto-generated OpenAPI docs at `/docs`, Pydantic validation for free |
+| **UI** | Streamlit | Fast to build for a 48-hour sprint; kept as a thin client over the API so both stay in sync |
+| **Data processing** | pandas | CSV parsing/type coercion + all anomaly-detection math |
+| **Testing** | pytest | 8 offline-safe tests |
+| **Deployment** | Docker / Docker Compose | Reproducible, single-command startup |
 
 ---
 
-## 4. Architecture
+## 🏗️ Architecture
 
 ```
                      ┌──────────────────────┐
@@ -84,12 +121,11 @@ Get a free Groq key: https://console.groq.com/keys → paste it into `.env` as `
            ▼                                            ▼
 ┌────────────────────────┐               ┌───────────────────────────────┐
 │ app/anomaly_detector.py │               │ app/llm_engine.py              │
-│ - IQR outliers per      │               │ 1. NL question → LLM → SQL     │
-│   category (resolution  │               │ 2. SQL runs read-only vs SQLite│
-│   time)                 │               │ 3. Result rows → LLM → plain-  │
-│ - stale High/Critical   │               │    English answer              │
-│   tickets (>24h)        │               │ (falls back to app/fallback.py │
-│ pure pandas, no LLM     │               │  if no GROQ_API_KEY is set)    │
+│ • IQR outliers/category │               │ 1. NL question → LLM → SQL     │
+│ • stale High/Critical   │               │ 2. SQL runs read-only vs SQLite│
+│   tickets (>24h)        │               │ 3. Result rows → LLM → plain-  │
+│ pure pandas — no LLM    │               │    English answer              │
+│                          │              │ (→ app/fallback.py if no key)  │
 └───────────┬─────────────┘               └────────────────┬───────────────┘
             │                                               │
             └───────────────────┬───────────────────────────┘
@@ -99,7 +135,7 @@ Get a free Groq key: https://console.groq.com/keys → paste it into `.env` as `
                      │  /health  /query       │
                      │  /anomalies  /tickets  │
                      └──────────┬───────────┘
-                                │  HTTP (requests)
+                                │  HTTP
                                 ▼
                      ┌──────────────────────┐
                      │ Streamlit UI           │
@@ -107,72 +143,92 @@ Get a free Groq key: https://console.groq.com/keys → paste it into `.env` as `
                      └──────────────────────┘
 ```
 
-### Why text-to-SQL, not "let the LLM read the CSV and answer directly"?
-Feeding 500 rows into a prompt and asking the LLM to eyeball an average or a
-count is unreliable — LLMs are not good at exact arithmetic over tabular data,
-and it wastes context on every single query. Converting the question into SQL
-instead means:
-- The **counting/averaging is done by SQLite**, which is always exact.
-- The generated **SQL is inspectable** (shown in both the API response and the
-  UI's "Show generated SQL" expander) — useful for debugging a wrong answer
-  and for the architecture walkthrough.
-- It scales to a dataset far larger than 500 rows without touching the design.
+**Query flow, step by step:**
 
-### Why a second LLM call to phrase the answer?
-The first call's output (SQL result rows) is structured data, not a sentence a
-support-ops person would actually want to read (e.g. "3.42" instead of "the
-average rating is 3.42 out of 5"). A second, cheap call turns the raw rows
-into a direct, human answer, and is told explicitly to lead with the number
-and to say plainly when a result is empty rather than guess.
-
-### Why is anomaly detection NOT LLM-based?
-Outlier detection over numeric/time columns is a statistics problem, not a
-language problem — pandas' quantile-based IQR fence and a straightforward age
-calculation are exact, deterministic, and don't burn LLM calls (or introduce
-LLM unreliability) for something a few lines of pandas does reliably. The two
-rules implemented:
-
-1. **Long resolution-time outliers** — for each `category`, resolved tickets
-   with `resolution_time_hrs > Q3 + 1.5×IQR` (the standard Tukey fence),
-   computed *per category* because "long" means something different for
-   Billing vs. Technical tickets.
-2. **Stale high-priority tickets** — status `Open`/`Escalated`, priority
-   `High`/`Critical`, and created more than 24 hours before the latest
-   timestamp in the dataset (used as "now" so the rule is stable against a
-   static historical CSV, rather than comparing to the wall-clock date you
-   happen to run it on).
-
-### SQL-injection / prompt-injection guardrails
-The generated SQL is validated before execution (`app/llm_engine.py::_validate_sql`):
-it must start with `SELECT`, must not contain `INSERT/UPDATE/DELETE/DROP/ALTER/
-ATTACH/CREATE/PRAGMA/...`, and must be a single statement (no `;`-chained
-second statement). This also blocks a ticket's free-text `issue_summary`
-(untrusted user-authored content that flows into the LLM's context via query
-results) from being used as a prompt-injection vector to make the *next*
-query mutate data.
+```
+User question
+   → LLM generates SQL (schema-aware, SELECT-only)
+   → SQL validated (blocks writes, chained statements)
+   → SQLite executes it (exact computation)
+   → LLM turns the result rows into a plain-English answer
+   → returned with the SQL attached, for full transparency
+```
 
 ---
 
-## 5. API reference
+## 🧠 Design rationale
+
+### Why text-to-SQL, not "hand the LLM the raw CSV"?
+
+Feeding 500 rows into a prompt and asking the model to eyeball a count or average is unreliable — LLMs are not good at exact arithmetic over tabular data. Converting the question into SQL instead means:
+
+- **Counting/averaging is done by SQLite** — always exact, never approximated.
+- The **generated SQL is inspectable** in both the API response and the UI's "Show generated SQL" expander — useful for debugging and for the architecture walkthrough.
+- It **scales** to far more than 500 rows without touching the design.
+
+### Why a second LLM call to phrase the answer?
+
+The first call's output is structured data (`3.42`), not a sentence a support-ops person wants to read (*"the average rating is 3.42 out of 5"*). The second, cheap call turns rows into a direct answer, and is explicitly told to lead with the number and state plainly when a result is empty rather than guess.
+
+### Why is anomaly detection NOT LLM-based?
+
+Outlier detection over numeric/time columns is a **statistics problem**. A quantile-based IQR fence and an age calculation are exact, deterministic, and free — no reason to spend an LLM call (or introduce LLM unreliability) on something pandas already does reliably.
+
+| Rule | Logic |
+|---|---|
+| **Long resolution-time outliers** | Per `category`, resolved tickets with `resolution_time_hrs > Q3 + 1.5×IQR` (Tukey fence) — computed *per category* because "long" means something different for Billing vs. Technical |
+| **Stale high-priority tickets** | Status `Open`/`Escalated` **and** priority `High`/`Critical` **and** created >24h before the dataset's latest timestamp (used as "now" so the rule is stable against a static historical CSV) |
+
+### Safety: SQL-injection / prompt-injection guardrails
+
+Every generated query is validated before execution (`app/llm_engine.py::_validate_sql`):
+
+- ✅ Must start with `SELECT`
+- 🚫 Blocks `INSERT / UPDATE / DELETE / DROP / ALTER / ATTACH / CREATE / PRAGMA / ...`
+- 🚫 Must be a single statement — no `;`-chained second statement
+
+This also stops a ticket's free-text `issue_summary` (untrusted content flowing into the LLM's context via query results) from being usable as a prompt-injection vector to make a *later* query mutate data.
+
+---
+
+## 🔌 API reference
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| `GET` | `/health` | Rows loaded, whether an LLM key is configured, model name |
-| `POST` | `/query` | `{"question": "..."}` → SQL + result rows + natural-language answer |
+| `GET` | `/health` | Rows loaded, whether an LLM key is configured, active model name |
+| `POST` | `/query` | `{"question": "..."}` → generated SQL + result rows + natural-language answer |
 | `GET` | `/anomalies` | Full anomaly report (both rule types) |
-| `GET` | `/tickets` | Bonus: filter/browse raw tickets by `status`/`priority` |
+| `GET` | `/tickets` | Bonus — filter/browse raw tickets by `status` / `priority` |
 
-Full interactive docs (try-it-out) at `/docs` once the API is running.
+Interactive, try-it-out docs live at **`/docs`** once the API is running.
+
+<details>
+<summary><b>curl examples</b></summary>
+
+```bash
+curl http://localhost:8000/health
+
+curl -X POST http://localhost:8000/query \
+  -H "Content-Type: application/json" \
+  -d '{"question": "How many tickets are currently open?"}'
+
+curl http://localhost:8000/anomalies
+
+curl "http://localhost:8000/tickets?status=Open&priority=Critical&limit=10"
+```
+</details>
 
 ---
 
-## 6. Example queries with outputs
+## 💬 Example queries & outputs
+
+> Every figure below is from a **live run** against `data/support_tickets.csv` — reproducible via `pytest` or by hitting the endpoints yourself.
 
 **Q: "How many tickets are currently open?"**
 ```json
 {
   "sql": "SELECT COUNT(*) AS open_tickets FROM tickets WHERE status = 'Open'",
-  "rows": [{"open_tickets": 111}],
+  "rows": [{ "open_tickets": 111 }],
   "answer": "There are 111 tickets currently open."
 }
 ```
@@ -185,65 +241,114 @@ Full interactive docs (try-it-out) at `/docs` once the API is running.
 }
 ```
 
+**Q: "What is the average customer rating for Technical category tickets?"**
+```json
+{
+  "sql": "SELECT AVG(customer_rating) AS avg_rating FROM tickets WHERE category = 'Technical' AND customer_rating IS NOT NULL",
+  "answer": "The average customer rating for Technical tickets is 3.74."
+}
+```
+
 **`GET /anomalies` (excerpt)**
 ```json
 {
   "long_resolution_outliers": {
     "count": 22,
     "tickets": [
-      {"ticket_id": "TKT-108", "category": "General", "resolution_time_hrs": 119.7,
-       "category_upper_fence_hrs": 48.65, "agent_id": "AGT-07"}
+      { "ticket_id": "TKT-108", "category": "General", "resolution_time_hrs": 119.7,
+        "category_upper_fence_hrs": 48.65, "agent_id": "AGT-07" }
     ]
   },
   "stale_high_priority": {
     "count": 80,
     "tickets": [
-      {"ticket_id": "TKT-233", "category": "Billing", "priority": "High",
-       "status": "Open", "age_hours": 2118.6, "agent_id": "AGT-08"}
+      { "ticket_id": "TKT-233", "category": "Billing", "priority": "High",
+        "status": "Open", "age_hours": 2118.6, "agent_id": "AGT-08" }
     ]
   }
 }
 ```
-(Exact counts above are from a live run against `data/support_tickets.csv`
-with `pytest`/`TestClient` — reproducible by running the test suite or hitting
-`/anomalies` yourself.)
 
 ---
 
-## 7. Known limitations
+## 🖥️ Streamlit UI
 
-- **Text-to-SQL is not 100% reliable.** Very ambiguous or multi-hop questions
-  (e.g. comparisons requiring a self-join, or vague date ranges) can produce
-  SQL that runs but doesn't answer what was meant. The generated SQL is always
-  shown so this is easy to catch, but there's no automatic "does this SQL
-  actually answer the question" verification step in this version.
-- **In-memory SQLite is rebuilt from the CSV on every process start** — this
-  is intentional for a static assessment dataset (keeps the "single command"
-  requirement simple) but means it is not the right pattern for a system with
-  live, continuously-updated tickets; that would call for a persistent
-  database and an ingestion job instead of a full reload.
-- **Fallback mode only covers 5 canned questions.** It exists purely so the
-  app is demoable at zero setup; it is not a substitute for the LLM path and
-  makes no attempt at broader NL coverage.
-- **No conversation memory.** Each `/query` call is independent — there's no
-  follow-up-question handling ("what about last week?" referring to a prior
-  answer).
-- **Anomaly thresholds are fixed** (`1.5× IQR`, `24h` staleness) rather than
-  configurable per deployment; reasonable defaults for this dataset, but a
-  production version would expose them as parameters.
+Three tabs, each a thin client over the API above:
 
-## 8. What I'd improve with more time
-- A lightweight LLM-based sanity check on the generated SQL before execution
-  (e.g. "does this SQL plausibly answer the question?") to catch text-to-SQL
-  misses automatically instead of relying on the user to notice.
-- Persist to an on-disk/managed database and add an incremental ingestion
-  endpoint instead of a full CSV reload, for a system with live ticket data.
-- Cache repeated questions (same question → same SQL) to cut LLM calls.
-- Add authentication on the API before exposing it beyond local/demo use.
+| Tab | What it does |
+|---|---|
+| 💬 **Ask a question** | Type or pick a sample question; view the generated SQL, result table, and AI-phrased answer |
+| 🚨 **Anomalies** | Run a live scan; browse both flagged sets in sortable tables |
+| 📊 **Explore data** | Filter/browse raw tickets by status and priority |
 
 ---
 
-## 9. Project structure
+## ✅ Running tests
+
+```bash
+pytest -v
+```
+
+All **8 tests** run fully offline (no Groq key required):
+
+```
+tests/test_basic.py::test_csv_loads_expected_row_count PASSED
+tests/test_basic.py::test_csv_has_no_unexpected_nulls_in_required_columns PASSED
+tests/test_basic.py::test_sqlite_table_row_count_matches_csv PASSED
+tests/test_basic.py::test_anomaly_detection_returns_both_rule_types PASSED
+tests/test_basic.py::test_health_endpoint PASSED
+tests/test_basic.py::test_anomalies_endpoint PASSED
+tests/test_basic.py::test_query_endpoint_falls_back_gracefully_without_key PASSED
+tests/test_basic.py::test_tickets_endpoint_filters PASSED
+
+======================== 8 passed ========================
+```
+
+---
+
+## 🛠️ Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `model_not_found` / `404` from `/query` | `GROQ_MODEL` in `.env` no longer exists on Groq. Set it to `openai/gpt-oss-120b` (current default) or check Groq's [deprecations page](https://console.groq.com/docs/deprecations) |
+| `llm_configured: false` on `/health` | `.env` is missing or `GROQ_API_KEY` is blank — confirm you copied `.env.example` → **`.env`** (not left it as `.env.example`), then restart the process |
+| `streamlit: File does not exist: ui/streamlit_app.py` | You're inside the `ui/` folder. Either `cd ..` to the project root first, or run `streamlit run streamlit_app.py` from within `ui/` |
+| A `venv`/`Lib/site-packages` folder shows up in `git status` | Your virtual environment was created *inside* the project folder. Add its name to `.gitignore` and run `git rm -r --cached <venv-folder>` to un-track it |
+
+---
+
+## ⚠️ Known limitations
+
+- **Text-to-SQL is not 100% reliable.** Ambiguous or multi-hop questions can produce SQL that runs but doesn't answer what was meant. The SQL is always shown, so this is easy to catch — there's no automatic "does this SQL answer the question" verification step yet.
+- **In-memory SQLite rebuilds from the CSV on every start.** Fine for this static dataset; a live-ticket system would need a persistent database and incremental ingestion instead.
+- **Fallback mode only covers 5 canned questions** — a zero-setup smoke test, not a substitute for the LLM path.
+- **No conversation memory** — each `/query` call is independent; no follow-up-question handling.
+- **Anomaly thresholds are fixed** (`1.5× IQR`, `24h` staleness) rather than configurable per deployment.
+
+## 🔮 What I'd improve with more time
+
+- LLM-based sanity check on generated SQL before execution, to catch text-to-SQL misses automatically.
+- Persist to an on-disk/managed database with incremental ingestion, for live ticket data.
+- Cache repeated questions (same question → same SQL) to cut LLM calls and latency.
+- API authentication before exposing beyond local/demo use.
+- Multi-turn conversation support so follow-ups can reference the previous answer.
+
+---
+
+## 🎯 How this maps to the evaluation criteria
+
+| Criterion (assessment weight) | How it's addressed |
+|---|---|
+| **Functionality — 30%** | All 4 brief requirements implemented and tested: CSV ingestion, NL querying, anomaly detection, REST API + UI |
+| **Architecture & Design — 25%** | Deliberate separation of LLM (language), SQLite (computation), pandas (statistics) — see [Design rationale](#-design-rationale) for the reasoning behind every major choice |
+| **Code Quality — 20%** | Modular `app/` package, Pydantic-validated schemas, 8 automated tests, docstrings explaining *why* not just *what* |
+| **LLM Integration Quality — 15%** | Two-step text-to-SQL pipeline, schema-aware prompting, SQL validation/guardrails, graceful fallback mode |
+| **README & Documentation — 10%** | This file — setup, architecture, model choice, example outputs, limitations, all in one place |
+
+---
+
+## 📁 Project structure
+
 ```
 .
 ├── app/
@@ -263,7 +368,16 @@ with `pytest`/`TestClient` — reproducible by running the test suite or hitting
 ├── Dockerfile
 ├── docker-compose.yml
 ├── start.sh                 # single-command startup, no Docker
-└── .env.example
+├── .env.example
+└── README.md
 ```
-#   d o t m a p p e r s - a i - t i c k e t - s y s t e m  
- 
+
+---
+
+<div align="center">
+
+Built for the **DOTMappers IT Pvt. Ltd.** AI Engineer technical assessment.
+
+**Ashok Katarukonda** · [GitHub](https://github.com/KatarukondaAshok) · [LinkedIn](https://linkedin.com/in/ashok-katarukonda)
+
+</div>
