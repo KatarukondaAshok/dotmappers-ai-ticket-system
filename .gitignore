@@ -1,0 +1,8 @@
+ git add . __pycache__/
+*.pyc
+.env
+.venv/
+venv/
+.pytest_cache/
+*.db
+.DS_Store
