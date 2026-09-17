@@ -265,3 +265,5 @@ with `pytest`/`TestClient` — reproducible by running the test suite or hitting
 ├── start.sh                 # single-command startup, no Docker
 └── .env.example
 ```
+#   d o t m a p p e r s - a i - t i c k e t - s y s t e m  
+ 
