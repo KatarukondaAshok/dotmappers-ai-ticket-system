@@ -97,7 +97,7 @@ docker-compose up
 | **LLM** | Groq — [`openai/gpt-oss-120b`](https://console.groq.com/docs/model/openai/gpt-oss-120b) | Free tier, fast inference (each query is *two* LLM calls), explicitly allowed by the brief. Groq's own recommended successor to `llama-3.3-70b-versatile`, decommissioned 16 Aug 2026 — configurable via `GROQ_MODEL` in `.env`, no code change needed to swap models |
 | **Query surface** | SQLite (in-memory) | Gives the LLM a stable, standard target (SQL) instead of a custom DSL; zero DB server to install |
 | **API** | FastAPI | Async-ready, auto-generated OpenAPI docs at `/docs`, Pydantic validation for free |
-| **UI** | Streamlit | Fast to build for a 48-hour sprint; kept as a thin client over the API so both stay in sync |
+| **UI** | Streamlit | Fast to build for a 24-hour sprint; kept as a thin client over the API so both stay in sync |
 | **Data processing** | pandas | CSV parsing/type coercion + all anomaly-detection math |
 | **Testing** | pytest | 8 offline-safe tests |
 | **Deployment** | Docker / Docker Compose | Reproducible, single-command startup |
